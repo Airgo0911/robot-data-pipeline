@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 
 from robot_data_pipeline.convert import build_training_view, plan_pipeline
@@ -73,4 +72,3 @@ def test_plan_and_training_view_preserve_provenance() -> None:
     )
     assert view["provenance_preserved"] is True
     assert view["records"][0]["episode_id"] == "e1"
-

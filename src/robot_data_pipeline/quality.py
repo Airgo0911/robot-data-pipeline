@@ -6,7 +6,7 @@ import math
 from collections import Counter
 from typing import Any, Iterable, Mapping
 
-from .schema import EpisodeManifest, ValidationIssue
+from .schema import ValidationIssue
 
 
 def validate_episode(
@@ -192,4 +192,3 @@ def split_quarantine(
         else:
             accepted.append(dict(record))
     return accepted, quarantine
-
