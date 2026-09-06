@@ -163,6 +163,7 @@ python -m pip install -e .
 ## Quick start
 
 The sample manifest is intentionally tiny and contains no images or robot data. It is enough to exercise the validation and planning code.
+The third record intentionally has a non-monotonic timestamp so the audit output demonstrates an explicit quality issue and quarantine candidate; it is not a hidden deletion.
 
 ### Validate a manifest
 
