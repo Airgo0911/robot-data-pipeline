@@ -7,6 +7,12 @@
 
 This repository is a public, lightweight engineering scaffold for showing how robot demonstrations move from raw exports to a training-ready view. It is deliberately independent of private datasets, robot credentials, model weights, and vendor-specific SDKs. The adapters are small enough to replace with the schemas used by a real project.
 
+## 中文简介
+
+这是一个面向双臂、多任务 VLA 实验的数据处理 pipeline 展示仓库。它把 Raw、LeRobot v2.1、项目内部的 DexData 中间视图和 training view 拆成可审计的阶段，并提供 manifest 校验、异常隔离、SHA-256 完整性检查和 dry-run CLI。公开代码不携带私有数据或模型权重，示例中的转换函数通过 TODO 标出需要按真实数据格式实现的适配点。
+
+与 RoboChallenge Table30 V2 对应的事实口径是：30 个任务、32,939 个 episode、45,827,921 个 frame，隔离 15 个异常 episode；训练环境记录为 8×A100、BF16、ZeRO-3；动作目标是 next-state proxy，而不是 commanded action。仓库不声称官方排名、官方榜单分数或真实 W1 成功率。
+
 ## Project context
 
 The scaffold mirrors the data path used in the RoboChallenge Table30 V2 project:
