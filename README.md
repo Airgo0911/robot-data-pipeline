@@ -219,6 +219,20 @@ print(training_view["record_count"])
 
 The functions return metadata and placeholders rather than silently inventing arrays. Replace the marked adapter functions before using a real dataset.
 
+### Hash a large artifact
+
+~~~python
+from pathlib import Path
+
+from robot_data_pipeline.integrity import sha256_file, verify_sha256
+
+artifact = Path("artifacts/episode-000.bin")
+digest = sha256_file(artifact)  # streamed in bounded chunks
+assert verify_sha256(artifact, digest)
+~~~
+
+Persist the digest beside the manifest and record whether a later check is a match, mismatch, or missing file.
+
 ## Configuration
 
 configs/example.yaml records the stage names, expected dimensions, action semantics, quarantine policy, and project inventory notes. A minimal configuration looks like:
