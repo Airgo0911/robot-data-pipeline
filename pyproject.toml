@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robot-data-pipeline"
+version = "0.1.0"
+description = "Manifest-first data pipeline scaffold for multi-task VLA robot demonstrations"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Airgo0911" }
+]
+dependencies = [
+  "PyYAML>=6.0,<7"
+]
+keywords = ["robotics", "VLA", "LeRobot", "dataset", "data-pipeline"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
+]
+
+[project.optional-dependencies]
+full = [
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "pyarrow>=16,<20",
+  "tqdm>=4.66,<5"
+]
+dev = [
+  "pytest>=8,<9",
+  "ruff>=0.6,<1"
+]
+
+[project.scripts]
+robot-data-pipeline = "robot_data_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+

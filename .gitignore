@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and packaging
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local data and generated reports
+data/
+raw/
+outputs/
+artifacts/
+*.parquet
+*.arrow
+*.h5
+*.hdf5
+*.zarr/
+*.mp4
+*.mkv
+*.bag
+*.log
+
+# Secrets and machine-local configuration
+.env
+.env.*
+*.pem
+*.key
+credentials*
+secrets/
+

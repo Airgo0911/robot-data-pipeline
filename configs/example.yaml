@@ -1,0 +1,28 @@
+# Public example only. Replace with the exact schema used by your dataset.
+schema_version: "0.1"
+action_semantics: "next_state_proxy"
+camera_order:
+  - wrist_left
+  - wrist_right
+  - overhead
+state_dim: 14
+action_dim: 14
+quarantine_dir: "outputs/quarantine"
+stages:
+  - raw
+  - lerobot_v2_1
+  - dexdata
+  - training_view
+
+# Inventory notes are provenance hints, not generated measurements.
+project_context:
+  benchmark: "RoboChallenge Table30 V2"
+  tasks: 30
+  episodes: 32939
+  frames: 45827921
+  isolated_anomalies: 15
+  training_hardware: "8x A100 80GB"
+  precision: "BF16"
+  sharding: "ZeRO-3"
+  action_semantics_note: "next-state proxy; not commanded action"
+

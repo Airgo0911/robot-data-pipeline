@@ -1,0 +1,12 @@
+# Core configuration/runtime dependency
+PyYAML>=6.0,<7
+
+# Optional but common for real dataset adapters
+numpy>=1.26,<3
+pandas>=2.2,<3
+pyarrow>=16,<20
+tqdm>=4.66,<5
+
+# Local verification
+pytest>=8,<9
+

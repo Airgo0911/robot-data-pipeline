@@ -1,0 +1,4 @@
+{"schema_version":"0.1","episode_id":"place_object_seed000_000","task":"place_object","frame_count":3,"timestamps":[0.0,0.1,0.2],"action_semantics":"next_state_proxy","source_path":"raw/place_object_seed000_000.jsonl","metadata":{"camera_order":["wrist_left","wrist_right","overhead"],"state_dim":14,"action_dim":14}}
+{"schema_version":"0.1","episode_id":"open_drawer_seed001_000","task":"open_drawer","frame_count":3,"timestamps":[0.0,0.1,0.2],"action_semantics":"next_state_proxy","source_path":"raw/open_drawer_seed001_000.jsonl","metadata":{"camera_order":["wrist_left","wrist_right","overhead"],"state_dim":14,"action_dim":14}}
+{"schema_version":"0.1","episode_id":"pick_cube_seed002_000","task":"pick_cube","frame_count":3,"timestamps":[0.0,0.2,0.1],"action_semantics":"next_state_proxy","source_path":"raw/pick_cube_seed002_000.jsonl","metadata":{"camera_order":["wrist_left","wrist_right","overhead"],"state_dim":14,"action_dim":14}}
+
