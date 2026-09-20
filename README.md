@@ -1,314 +1,140 @@
-# robot-data-pipeline
+# Robot Data Pipeline
 
-> A reproducible, manifest-first data pipeline skeleton for dual-arm, multi-task VLA experiments.
+整理机器人数据处理时用到的检查方法，以及一套可以替换适配器的 Python 小框架。
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+## 为什么做这个
 
-This repository is a public, lightweight engineering scaffold for showing how robot demonstrations move from raw exports to a training-ready view. It is deliberately independent of private datasets, robot credentials, model weights, and vendor-specific SDKs. The adapters are small enough to replace with the schemas used by a real project.
+处理 RoboChallenge Table30 V2 数据时，花了不少时间在格式和字段对齐上。数据经过几次转换，同名字段的含义也可能变了，所以我把各阶段拆开，先记录来源、检查元数据，再接具体的转换逻辑：
 
-## 中文简介
+```text
+Raw export -> LeRobot v2.1 -> DexData -> training view
+```
 
-这是一个面向双臂、多任务 VLA 实验的数据处理 pipeline 展示仓库。它把 Raw、LeRobot v2.1、项目内部的 DexData 中间视图和 training view 拆成可审计的阶段，并提供 manifest 校验、异常隔离、SHA-256 完整性检查和 dry-run CLI。公开代码不携带私有数据或模型权重，示例中的转换函数通过 TODO 标出需要按真实数据格式实现的适配点。
+这里的 DexData 是项目使用的中间视图名称。公开仓库保留了这个流程的接口和小样例，真实数据的解码、存储和训练张量构建还需要各自实现。
 
-与 RoboChallenge Table30 V2 对应的事实口径是：30 个任务、32,939 个 episode、45,827,921 个 frame，隔离 15 个异常 episode；训练环境记录为 8×A100、BF16、ZeRO-3；动作目标是 next-state proxy，而不是 commanded action。仓库不声称官方排名、官方榜单分数或真实 W1 成功率。
+## 项目背景
 
-## Project context
+原项目的数据处理范围是 30 个任务、32,939 条 episode、45,827,921 帧，处理过程中识别并隔离了 15 条异常 episode。这些数字来自原项目记录，不是运行本仓库样例得到的结果；公开样例只有 3 条人工构造的元数据记录，没有对应的图像或机器人数据文件。
 
-The scaffold mirrors the data path used in the RoboChallenge Table30 V2 project:
+有一个容易混淆的地方：项目使用的是从观测状态构造的 `next_state_proxy`，不能直接当作控制器实际下发的 `commanded_action`。配置里把动作语义单独保留下来，是为了后续接数据和训练时能明确区分。
 
-~~~text
-Raw export -> LeRobot v2.1 view -> DexData intermediate view -> training view
-~~~
+## 目前能做什么
 
-The project record that motivated this repository contains the following evidence-bound facts:
+- 读取 JSONL episode 清单，检查必需标识、正帧数和重复 episode ID。
+- 检查已提供的时间戳是否为有限数值、是否单调不减；长度与帧数不同会给出 warning。
+- 按配置核对已声明的状态维度、动作维度和相机顺序。这只是元数据对照，不会读取数组验证实际形状。
+- 输出带 episode ID、问题代码和严重程度的审计报告。
+- 对清单声明的源文件分块计算 SHA-256；有预期摘要时进行比对，并记录缺失文件。
+- 打印转换阶段计划；Python API 提供元数据转换占位函数和记录分组工具。
 
-| Item | Recorded value | Interpretation |
-| --- | ---: | --- |
-| Tasks | 30 | Multi-task collection/conversion scope |
-| Episodes | 32,939 | Episode records counted in the project inventory |
-| Frames | 45,827,921 | Frame count recorded for the inventory |
-| Anomalies | 15 episodes | Isolated for audit; not silently deleted |
-| Training hardware | 8 x A100 80 GB | BF16 distributed training with ZeRO-3 |
-| Action semantics | next-state proxy | Observation-derived proxy; **not commanded action** |
+`split_quarantine()` 可以把记录按单条校验结果分成两个列表，但不会移动文件，也不会自动执行清单级的重复 ID 检查。CLI 的 `audit` 只生成报告，不会删除、移动或过滤源数据。
 
-These numbers describe the project inventory and training setup, not a promise that this public skeleton contains the original data. It also does not claim an official competition rank, official leaderboard score, real-robot W1 success rate, or ownership of the original dataset. The real W1 run was pending platform scheduling at the time of the resume audit.
+## 快速开始
 
-## Why a data pipeline repository?
+需要 Python 3.10 或更新版本，建议在虚拟环境中运行。
 
-VLA experiments often fail before model training starts: camera order changes, timestamps are not monotonic, actions are interpreted with the wrong semantics, or an episode is copied incompletely. A useful pipeline should make those assumptions visible and auditable.
-
-This repository demonstrates five practices:
-
-1. **Manifest-first metadata**: every conversion records schema version, source, episode id, frame count, and action semantics.
-2. **Explicit adapters**: Raw, LeRobot v2.1, DexData, and training views are separate stages rather than a single opaque script.
-3. **Quality gates**: malformed records, non-finite values, non-monotonic timestamps, and shape mismatches are reported with an episode id.
-4. **Isolation instead of deletion**: suspect episodes are moved to a quarantine manifest so the denominator can be explained later.
-5. **Integrity evidence**: files can be hashed with SHA-256 and re-checked before training.
-
-The implementation is intentionally partial. The conversion functions show the contracts and the order of operations; project-specific decoding, camera calibration, robot kinematics, and storage backends belong in adapters owned by the experiment.
-
-## Features
-
-- JSONL input/output for a dependency-light example path.
-- Optional YAML configuration for repeatable runs.
-- Episode-level validation with structured issue codes.
-- SHA-256 hashing in bounded chunks, suitable for large recordings.
-- Dry-run conversion plan that explains each stage without requiring private data.
-- Training-view metadata with padding/mask and action-semantics fields.
-- CLI commands for validation, audit, and dry-run planning.
-- Unit-testable pure functions and a small example dataset.
-
-## Data contract and semantics
-
-### Stage definitions
-
-The stage names are intentionally explicit. They should not be treated as interchangeable:
-
-- **Raw**: source recordings or exports. The repository does not assume a vendor schema. An adapter must declare how images, proprioception, timestamps, task labels, and actions are decoded.
-- **LeRobot v2.1 view**: a normalized dataset view intended to follow the relevant LeRobot v2.1 conventions. Before publishing a dataset, validate the exact version-specific feature names and storage layout against the official LeRobot documentation. This repository provides a metadata contract, not a claim that its sample JSONL is an official LeRobot dataset.
-- **DexData**: the intermediate hand/dexterous-manipulation view used by the project. In this public skeleton it is an internal interface name, not an assertion about a public or vendor-owned schema. Keep a versioned adapter if the real project changes fields.
-- **Training view**: model-ready records after normalization, sequence slicing, padding, and masks. It is not the same as the source data and must retain provenance back to episode and frame ids.
-
-### Action semantics
-
-The example config uses the value next_state_proxy to make a critical distinction visible. A next-state proxy is derived from consecutive observations, for example a difference between pose or joint states. It is **not** the command sent to a controller and must not be described as commanded action in a paper, resume, or interview. If commanded actions are available, set action_semantics to commanded_action and document the controller, units, clipping, and coordinate frame.
-
-### Required episode fields
-
-The minimal JSONL record accepted by the example validator is:
-
-~~~json
-{
-  "schema_version": "0.1",
-  "episode_id": "task_000_seed000_000",
-  "task": "place_object",
-  "frame_count": 32,
-  "timestamps": [0.0, 0.1, 0.2],
-  "action_semantics": "next_state_proxy",
-  "source_path": "raw/task_000/episode_000.jsonl",
-  "metadata": {
-    "camera_order": ["wrist_left", "wrist_right", "overhead"],
-    "state_dim": 14,
-    "action_dim": 14
-  }
-}
-~~~
-
-For a production pipeline, store frame-level data in Parquet, Zarr, HDF5, or the official dataset format and keep this episode manifest alongside it. Do not infer success, action semantics, or coordinate frames from a filename.
-
-### Quality and denominator rules
-
-An episode is not automatically valid because a file exists. The validation stage should check, as applicable:
-
-- task and episode ids are present and unique;
-- frame count is positive and agrees with the decoded arrays;
-- timestamps are finite and monotonic;
-- camera names and ordering match the declared schema;
-- state/action arrays have the declared dimensions;
-- action values use documented units and coordinate frames;
-- terminal and success labels have a defined source;
-- no NaN or Inf reaches the training view.
-
-Invalid records are written to the quarantine report. The report must preserve the original id and issue code so that a later success-rate or sample-count denominator can be reconstructed.
-
-## Repository layout
-
-~~~text
-robot-data-pipeline/
-├── configs/
-│   └── example.yaml
-├── examples/
-│   ├── config/
-│   │   └── example.yaml
-│   ├── raw_manifest.jsonl
-│   └── run_pipeline.py
-├── src/
-│   └── robot_data_pipeline/
-│       ├── __init__.py
-│       ├── cli.py
-│       ├── convert.py
-│       ├── integrity.py
-│       ├── io.py
-│       ├── quality.py
-│       └── schema.py
-├── tests/
-│   └── test_smoke.py
-├── .gitignore
-├── LICENSE
-├── pyproject.toml
-├── requirements.txt
-└── README.md
-~~~
-
-## Requirements
-
-- Python 3.10 or newer.
-- A local filesystem for the example path.
-- For real data, install the storage/robot SDK required by the source format separately. No private SDK, data, checkpoint, or robot credentials are included here.
-
-The pinned ranges in requirements.txt are for a convenient research environment; update them with the target CUDA/PyTorch and dataset stack used by the experiment.
-
-## Installation
-
-~~~bash
+```bash
 git clone https://github.com/Airgo0911/robot-data-pipeline.git
 cd robot-data-pipeline
-
-python -m venv .venv
-# Linux/macOS
-source .venv/bin/activate
-# Windows PowerShell
-# .venv\Scripts\Activate.ps1
-
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
 python -m pip install -e .
-~~~
+```
 
-## Quick start
+上面的安装包含运行 CLI 所需的 PyYAML。`requirements.txt` 另外列出了真实适配器常用的数据处理库和 pytest，需要时安装：
 
-The sample manifest is intentionally tiny and contains no images or robot data. It is enough to exercise the validation and planning code.
-The third record intentionally has a non-monotonic timestamp so the audit output demonstrates an explicit quality issue and quarantine candidate; it is not a hidden deletion.
+```bash
+python -m pip install -r requirements.txt
+```
 
-### Validate a manifest
+### 检查样例清单
 
-~~~bash
-python -m robot_data_pipeline.cli validate \
-  --manifest examples/raw_manifest.jsonl
-~~~
+```bash
+python -m robot_data_pipeline.cli validate --manifest examples/raw_manifest.jsonl --config configs/example.yaml
+```
 
-### Run an audit and write reports
+第三条记录故意放了倒序时间戳，预期得到 `records: 3`、`errors: 1` 和 `non_monotonic_timestamps`。当前 CLI 即使发现质量错误也返回退出码 0，接自动化流程时要读取输出中的 `errors` 和 `issues`，不能只看进程是否成功退出。
 
-~~~bash
-python -m robot_data_pipeline.cli audit \
-  --manifest examples/raw_manifest.jsonl \
-  --output-dir outputs/example
-~~~
+### 保存审计报告
 
-The audit writes summary.json, issues.jsonl, and integrity.json when file paths are available. A missing source_path is reported as a warning rather than hidden.
+```bash
+python -m robot_data_pipeline.cli audit --manifest examples/raw_manifest.jsonl --config configs/example.yaml --output-dir outputs/example
+```
 
-### Print a conversion plan
+生成三个文件：
 
-~~~bash
-python -m robot_data_pipeline.cli dry-run \
-  --manifest examples/raw_manifest.jsonl \
-  --config configs/example.yaml
-~~~
+| 文件 | 内容 |
+| --- | --- |
+| `summary.json` | 记录数、问题数量、问题代码和文件完整性状态统计 |
+| `issues.jsonl` | 每个问题对应的 episode ID、代码、说明及严重程度 |
+| `integrity.json` | 声明的源文件路径、检查状态和可读取文件的摘要 |
 
-On Windows PowerShell, the same commands can be written on one line.
+源文件的相对路径以 manifest 所在目录为基准。样例没有携带源文件，所以 3 条完整性结果均为 `missing`，这是预期结果。源文件存在但未提供预期摘要时，状态为 `unhashed`，报告仍会计算并保存当前摘要；只有与已有摘要比较后，才有 `match` 或 `mismatch`。
 
-### Use the Python API
+### 查看转换计划
 
-~~~python
+```bash
+python -m robot_data_pipeline.cli dry-run --manifest examples/raw_manifest.jsonl --config configs/example.yaml
+```
+
+这个命令只显示阶段顺序和动作语义，不会生成 LeRobot 数据集或训练张量。`convert.py` 中的 TODO 是接入真实格式的位置。
+
+### 单独计算文件摘要
+
+在仓库根目录运行下面的 Python 代码，可以用现有样例文件试一下：
+
+```python
 from pathlib import Path
-
-from robot_data_pipeline.convert import build_training_view, plan_pipeline
-from robot_data_pipeline.io import read_jsonl
-from robot_data_pipeline.quality import validate_episode
-
-records = list(read_jsonl(Path("examples/raw_manifest.jsonl")))
-issues = [validate_episode(item) for item in records]
-plan = plan_pipeline(Path("examples/raw_manifest.jsonl"), Path("configs/example.yaml"))
-training_view = build_training_view(records, action_semantics="next_state_proxy")
-
-print(plan.stages)
-print(sum(len(item) for item in issues), "issue groups")
-print(training_view["record_count"])
-~~~
-
-The functions return metadata and placeholders rather than silently inventing arrays. Replace the marked adapter functions before using a real dataset.
-
-### Hash a large artifact
-
-~~~python
-from pathlib import Path
-
 from robot_data_pipeline.integrity import sha256_file, verify_sha256
 
-artifact = Path("artifacts/episode-000.bin")
-digest = sha256_file(artifact)  # streamed in bounded chunks
-assert verify_sha256(artifact, digest)
-~~~
+path = Path("examples/raw_manifest.jsonl")
+digest = sha256_file(path)
+print(digest)
+assert verify_sha256(path, digest)
+```
 
-Persist the digest beside the manifest and record whether a later check is a match, mismatch, or missing file.
+这个例子只演示 API。实际使用时要提前保存可信的参考摘要，之后再做比对；现算现比不能证明文件在此前没有变化。SHA-256 能帮助发现文件字节变化，不能证明动作标签、时间对齐或任务语义正确。
 
-## Configuration
+## 文件放在哪里
 
-configs/example.yaml records the stage names, expected dimensions, action semantics, quarantine policy, and project inventory notes. A minimal configuration looks like:
+```text
+configs/example.yaml                  # 阶段、动作语义和预期维度
+examples/raw_manifest.jsonl           # 3 条人工构造的样例记录
+src/robot_data_pipeline/
+  schema.py                          # 清单与配置的数据结构
+  quality.py                         # 元数据校验、记录分组
+  integrity.py                       # SHA-256 和源文件检查
+  convert.py                         # 阶段计划、转换占位接口
+  io.py                              # JSONL / YAML 读写
+  cli.py                             # validate / audit / dry-run
+tests/test_smoke.py                   # 样例路径和基础接口检查
+```
 
-~~~yaml
-schema_version: "0.1"
-action_semantics: "next_state_proxy"
-camera_order:
-  - wrist_left
-  - wrist_right
-  - overhead
-state_dim: 14
-action_dim: 14
-quarantine_dir: "outputs/quarantine"
-stages:
-  - raw
-  - lerobot_v2_1
-  - dexdata
-  - training_view
-~~~
+配置中的 `project_context` 是原项目的背景记录，不是程序测量值。`quarantine_dir` 目前也只是配置字段，不会触发文件移动。
 
-Keep the project inventory values in a separate experiment manifest when the pipeline is used for a real run. Do not overwrite measured counts with estimates.
+## 还没接上的部分
 
-The same minimal schema is copied to examples/config/example.yaml so a reviewer can inspect the example without opening the project-level configuration directory. Keep the two files synchronized when changing the public demo.
+- [ ] 真实 Raw / LeRobot v2.1 存储适配器，以及 DexData 字段映射。
+- [ ] 图像解码、损坏文件检测和跨相机时间同步检查。
+- [ ] 状态与动作数组的逐帧维度、数值范围、单位及坐标系检查。
+- [ ] 归一化、序列切片、padding / mask 和训练样本写入。
+- [ ] 带复核记录的隔离执行流程，以及各转换阶段的完整来源追踪。
 
-## Adapting this scaffold to real data
+仓库不包含私有数据、模型权重或机器人 SDK，也没有实时流处理支持。样例 JSONL 不是标准 LeRobot 数据集；实现适配器时还需要对照所用版本的 [LeRobot 文档](https://huggingface.co/docs/lerobot)。
 
-1. Implement a RawAdapter that decodes the source recording and emits one episode manifest plus frame arrays.
-2. Add a versioned LeRobot adapter. Check feature names, dtype, image encoding, and episode indexing against the exact LeRobot v2.1 release used by the experiment.
-3. Define the DexData schema in a checked-in document. Record whether actions are commanded, next-state proxy, or another target.
-4. Add camera calibration and coordinate-frame transforms as explicit, tested functions. Never hide a reorder or unit conversion in a dataloader.
-5. Add a training-view builder that performs normalization, sequence slicing, padding, and masks while retaining provenance ids.
-6. Run audit before and after conversion, and quarantine anomalies with an explanation.
-7. Store code version, config hash, dataset manifest hash, checkpoint, and hardware details with the training run.
+## 运行现有检查
 
-## Example implementation notes
+安装 `requirements.txt` 后：
 
-The code intentionally leaves several project-specific decisions as TODOs:
-
-- camera decoding and image compression;
-- robot-specific joint/pose conventions;
-- action clipping and gripper encoding;
-- episode success/termination labels;
-- Parquet/Zarr/HDF5 or LeRobot storage;
-- distributed sharding and worker retry policy.
-
-This keeps the public repository honest and makes the boundaries visible during an interview. It is better to say “the adapter is the integration point” than to present a fabricated benchmark result.
-
-## Reproducibility checklist
-
-Before reporting a dataset or training result, archive:
-
-- source manifest and schema version;
-- exact commit and configuration hash;
-- raw/normalized/training-view counts;
-- quarantined episode ids and issue codes;
-- SHA-256 hashes for large artifacts;
-- action semantics, dimensions, units, and coordinate frames;
-- camera order and calibration revision;
-- random seeds and data split;
-- hardware, software, CUDA, and mixed-precision settings.
-
-For the RoboChallenge project context, the defensible wording is: “I processed a 30-task inventory of 32,939 episodes and 45,827,921 frames, isolated 15 anomalous episodes, and prepared a LeRobot v2.1 -> DexData -> training-view path. The training setup used 8×A100 with BF16/ZeRO-3. The recorded action target was a next-state proxy, not commanded action.” Avoid extending that statement to an official rank or real-robot success rate without a corresponding receipt.
-
-## Testing
-
-~~~bash
+```bash
 python -m pytest -q
-~~~
+```
 
-The smoke tests only check the public contract and sample path. Add dataset-specific tests before accepting a training run.
+这些检查覆盖公开样例和基础接口，不能代替真实数据集的验收。
+
+## 相关记录
+
+- [robotwin-evaluation-tools](https://github.com/Airgo0911/robotwin-evaluation-tools)：RoboTwin 评测工具。
+- [vla-paper-reading-notes](https://github.com/Airgo0911/vla-paper-reading-notes)：VLA 论文阅读笔记。
 
 ## License
 
-MIT. See LICENSE.
-
-## Citation / acknowledgement
-
-If this scaffold is useful in a portfolio, cite the repository commit and the exact experiment manifest rather than copying the project inventory as if it were a public benchmark result. See the official [LeRobot documentation](https://huggingface.co/docs/lerobot) when implementing a production adapter.
+[MIT](LICENSE)
